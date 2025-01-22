@@ -50,13 +50,15 @@ func Evaluate(req *certutil.CIEPSRequest) (*certutil.CIEPSResponse, error) {
 		req.VaultRequestKV.IssuerID)
 
 	// Log incoming request details
-	log.Printf("Processing certificate request for CN: %q", req.ParsedCSR.Subject.CommonName)
+	if commonName, ok := req.UserRequestKV["common_name"].(string); ok {
+		log.Printf("Processing certificate request for CN: %q", commonName)
+	}
 	log.Printf("Request details - Organization: %v, Country: %v",
 		req.ParsedCSR.Subject.Organization,
 		req.ParsedCSR.Subject.Country)
 
 	// Add domain validation
-	if commonName := req.ParsedCSR.Subject.CommonName; commonName != "" {
+	if commonName, ok := req.UserRequestKV["common_name"].(string); ok && commonName != "" {
 		log.Printf("Validating domain: %s", commonName)
 		if strings.HasSuffix(commonName, ".unauthorized.cloudnativeapps.lab") {
 			log.Printf("Request rejected: unauthorized domain %q", commonName)
@@ -64,7 +66,6 @@ func Evaluate(req *certutil.CIEPSRequest) (*certutil.CIEPSResponse, error) {
 				Error:     fmt.Errorf("domain %q is not authorized", commonName).Error(),
 				IssuerRef: req.VaultRequestKV.IssuerID,
 			}
-
 			return resp, nil
 		}
 		log.Printf("Domain validation successful for: %s", commonName)
@@ -88,6 +89,11 @@ func Evaluate(req *certutil.CIEPSRequest) (*certutil.CIEPSResponse, error) {
 
 	cert.RawSubject = csr.RawSubject
 	cert.Subject = csr.Subject
+
+	// Add the common name from the request as a DNS name
+	if commonName, ok := req.UserRequestKV["common_name"].(string); ok && commonName != "" {
+		cert.DNSNames = []string{commonName}
+	}
 
 	cert.KeyUsage = x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageDataEncipherment | x509.KeyUsageKeyAgreement
 	cert.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
