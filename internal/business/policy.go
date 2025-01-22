@@ -12,6 +12,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"fmt"
+	"log"
 	"math/big"
 	"strings"
 	"sync"
@@ -29,11 +30,23 @@ var (
 func Evaluate(req *certutil.CIEPSRequest) (*certutil.CIEPSResponse, error) {
 	shouldGenerateCA.Do(generateSelfSignedRoot)
 
+	// Log incoming request details
+	log.Printf("Processing certificate request for CN: %q", req.ParsedCSR.Subject.CommonName)
+	log.Printf("Request details - Organization: %v, Country: %v",
+		req.ParsedCSR.Subject.Organization,
+		req.ParsedCSR.Subject.Country)
+
 	// Add domain validation
 	if commonName := req.ParsedCSR.Subject.CommonName; commonName != "" {
+		log.Printf("Validating domain: %s", commonName)
 		if strings.HasSuffix(commonName, ".unauthorized.cloudnativeapps.lab") {
+			log.Printf("Request rejected: unauthorized domain %q", commonName)
 			return nil, fmt.Errorf("domain %q is not authorized", commonName)
 		}
+		log.Printf("Domain validation successful for: %s", commonName)
+	} else {
+		log.Printf("Request rejected: Common Name is required")
+		return nil, fmt.Errorf("certificate request must include a Common Name")
 	}
 
 	var err error
@@ -88,6 +101,12 @@ func Evaluate(req *certutil.CIEPSRequest) (*certutil.CIEPSResponse, error) {
 		return nil, fmt.Errorf("failed to marshal certificate template: %w", err)
 	}
 
+	// Log certificate generation details
+	log.Printf("Generated certificate for %q valid from %v to %v",
+		cert.Subject.CommonName,
+		cert.NotBefore,
+		cert.NotAfter)
+
 	resp := &certutil.CIEPSResponse{
 		Warnings: []string{"result from demo server; no validation occurred"},
 		ParsedCertificate: &x509.Certificate{
@@ -98,6 +117,7 @@ func Evaluate(req *certutil.CIEPSRequest) (*certutil.CIEPSResponse, error) {
 	}
 
 	resp.MarshalCertificate()
+	log.Printf("Certificate request completed successfully for CN: %q", req.ParsedCSR.Subject.CommonName)
 
 	return resp, nil
 }
