@@ -30,6 +30,25 @@ var (
 func Evaluate(req *certutil.CIEPSRequest) (*certutil.CIEPSResponse, error) {
 	shouldGenerateCA.Do(generateSelfSignedRoot)
 
+	// Log the complete request payload
+	log.Printf("Received CIEPS request: %+v", req)
+	log.Printf("CSR Details:\n"+
+		"  Subject: %+v\n"+
+		"  DNSNames: %v\n"+
+		"  EmailAddresses: %v\n"+
+		"  IPAddresses: %v\n"+
+		"  URIs: %v\n"+
+		"  SignatureAlgorithm: %v",
+		req.ParsedCSR.Subject,
+		req.ParsedCSR.DNSNames,
+		req.ParsedCSR.EmailAddresses,
+		req.ParsedCSR.IPAddresses,
+		req.ParsedCSR.URIs,
+		req.ParsedCSR.SignatureAlgorithm)
+	log.Printf("Vault Request Details:\n"+
+		"  IssuerID: %v\n",
+		req.VaultRequestKV.IssuerID)
+
 	// Log incoming request details
 	log.Printf("Processing certificate request for CN: %q", req.ParsedCSR.Subject.CommonName)
 	log.Printf("Request details - Organization: %v, Country: %v",
@@ -41,12 +60,21 @@ func Evaluate(req *certutil.CIEPSRequest) (*certutil.CIEPSResponse, error) {
 		log.Printf("Validating domain: %s", commonName)
 		if strings.HasSuffix(commonName, ".unauthorized.cloudnativeapps.lab") {
 			log.Printf("Request rejected: unauthorized domain %q", commonName)
-			return nil, fmt.Errorf("domain %q is not authorized", commonName)
+			resp := &certutil.CIEPSResponse{
+				Error:     fmt.Errorf("domain %q is not authorized", commonName).Error(),
+				IssuerRef: req.VaultRequestKV.IssuerID,
+			}
+
+			return resp, nil
 		}
 		log.Printf("Domain validation successful for: %s", commonName)
 	} else {
 		log.Printf("Request rejected: Common Name is required")
-		return nil, fmt.Errorf("certificate request must include a Common Name")
+		resp := &certutil.CIEPSResponse{
+			Error:     fmt.Errorf("request rejected: Common Name is required").Error(),
+			IssuerRef: req.VaultRequestKV.IssuerID,
+		}
+		return resp, nil
 	}
 
 	var err error
