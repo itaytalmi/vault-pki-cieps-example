@@ -13,6 +13,7 @@ import (
 	"encoding/asn1"
 	"fmt"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,6 +28,13 @@ var (
 
 func Evaluate(req *certutil.CIEPSRequest) (*certutil.CIEPSResponse, error) {
 	shouldGenerateCA.Do(generateSelfSignedRoot)
+
+	// Add domain validation
+	if commonName := req.ParsedCSR.Subject.CommonName; commonName != "" {
+		if strings.HasSuffix(commonName, ".unauthorized.cloudnativeapps.lab") {
+			return nil, fmt.Errorf("domain %q is not authorized", commonName)
+		}
+	}
 
 	var err error
 
