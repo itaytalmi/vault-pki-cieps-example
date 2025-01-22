@@ -142,7 +142,6 @@ func Evaluate(req *certutil.CIEPSRequest) (*certutil.CIEPSResponse, error) {
 		cert.NotAfter)
 
 	resp := &certutil.CIEPSResponse{
-		Warnings: []string{"result from demo server; no validation occurred"},
 		ParsedCertificate: &x509.Certificate{
 			Raw: certBytes,
 		},
